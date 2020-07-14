@@ -1,3 +1,6 @@
+-- This code was adapted from "https://elm.christmas/2018/16"
+
+
 module Main exposing (main)
 
 import Browser
@@ -14,56 +17,56 @@ import Html.Attributes as A
 
 
 type alias Model =
-    { lords : WebData (List Character) }
+    { stories : WebData (List Story) }
 
 
 init : () -> ( Model, Cmd Msg )
 init flags =
-    ( { lords = NotAsked }, Cmd.none )
+    ( { stories = NotAsked }, Cmd.none )
 
 
 type Msg
     = FetchClick
-    | LordsFetched (WebData (List Character))
+    | StoriesFetched (WebData (List Story))
 
 
-fetchHouses : Task Http.Error (List Int)
-fetchHouses =
+fetchIds : Task Http.Error (List Int)
+fetchIds =
     HttpBuilder.get "https://hacker-news.firebaseio.com/v0/topstories.json"
-        |> HttpBuilder.withExpectJson (Json.Decode.list decodeHouse)
+        |> HttpBuilder.withExpectJson (Json.Decode.list decodeId)
         |> HttpBuilder.toTask
 
 
-fetchCurrentLord : Int -> Task Http.Error Character
-fetchCurrentLord currentLord =
-    HttpBuilder.get ("https://hacker-news.firebaseio.com/v0/item/" ++ String.fromInt currentLord ++ ".json")
-        |> HttpBuilder.withExpectJson decodeCharacter
+fetchCurrentStory : Int -> Task Http.Error Story
+fetchCurrentStory currentStory =
+    HttpBuilder.get ("https://hacker-news.firebaseio.com/v0/item/" ++ String.fromInt currentStory ++ ".json")
+        |> HttpBuilder.withExpectJson decodeStory
         |> HttpBuilder.toTask
 
 
-fetchLords : Cmd Msg
-fetchLords =
-    fetchHouses
+fetchStories : Cmd Msg
+fetchStories =
+    fetchIds
         |> Task.andThen
-            (\houses ->
-                houses
-                    |> List.map fetchCurrentLord
+            (\ids ->
+                ids
+                    |> List.map fetchCurrentStory
                     |> Task.sequence
             )
         |> RemoteData.asCmd
-        |> Cmd.map LordsFetched
+        |> Cmd.map StoriesFetched
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         FetchClick ->
-            ( { model | lords = Loading }
-            , fetchLords
+            ( { model | stories = Loading }
+            , fetchStories
             )
 
-        LordsFetched lords ->
-            ( { model | lords = lords }
+        StoriesFetched stories ->
+            ( { model | stories = stories }
             , Cmd.none
             )
 
@@ -71,7 +74,7 @@ update msg model =
 view : Model -> Html Msg
 view model =
     div []
-        [ case model.lords of
+        [ case model.stories of
             NotAsked ->
                 button [ onClick FetchClick ] [ text "Get recent stories" ]
                 
@@ -79,13 +82,14 @@ view model =
             Loading ->
                 text "Loading..."
 
-            Success lords ->
+            Success stories ->
                 ul [] <|
                     List.map
-                        (\char ->
-                            li [] [text "(", text char.title, text ")", text " written by ", text char.by, input [ A.placeholder "Type a note about the story"] []]
+                        (\stor ->
+                        li[A.class "alert alert-primary"][ li [A.class "alert alert-dark"] [text "Story by: ", text stor.by],
+                            li [A.class "alert alert-dark"] [text "Title: ",text stor.title],li[A.class "alert alert-dark"][input[A.class "col-md-6",A.placeholder "Add Your notes"][]]]
                         )
-                        lords
+                        stories
 
             Failure err ->
                 text <| Debug.toString err
@@ -102,16 +106,16 @@ main =
         }
 
 
-type alias Character =
+type alias Story =
     { by : String
     , title : String
     }
 
-decodeCharacter : Decoder Character
-decodeCharacter =
-    Json.Decode.succeed Character
+decodeStory : Decoder Story
+decodeStory =
+    Json.Decode.succeed Story
         |> Json.Decode.Pipeline.required "by" Json.Decode.string
         |> Json.Decode.Pipeline.required "title" Json.Decode.string
 
-decodeHouse : Decoder Int
-decodeHouse = int
+decodeId : Decoder Int
+decodeId = int
